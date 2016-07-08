@@ -1,0 +1,85 @@
+#:import Roulette kivy.garden.roulette.Roulette
+
+<RollScreen>
+   BoxLayout:
+      orientation: "vertical"
+      
+      AnchorLayout:
+         anchor_x: "center"
+         anchor_y: "center"
+
+         Label:
+            id: roll_result_display
+            size_hint: ( 1, .2 )
+            
+            text_size: ( self.width, None )
+            font_size: "40sp"
+            halign: "center"
+            valign: "middle"
+            markup: True
+
+      BoxLayout:
+         orientation: "horizontal"
+         
+         BoxLayout:
+            orientation: "vertical"
+         
+            Label:
+               font_size: "30sp"
+               text: "Dice Pool"
+   
+            AnchorLayout:
+               anchor_x: "center"
+               anchor_y: "top"
+            
+               Roulette:
+                  id: dice_pool_selector
+                  density: 5.25
+
+                  font_size: "20sp"
+            
+         BoxLayout:
+            orientation: "vertical"
+         
+            Label:
+               font_size: "30sp"
+               text: "Target Number"
+         
+            AnchorLayout:
+               anchor_x: "center"
+               anchor_y: "top"
+
+               Roulette:
+                  id: target_number_selector
+                  density: 3.25
+
+                  font_size: "20sp"
+            
+      BoxLayout:
+         orientation: "horizontal"
+      
+         Button:
+            id: roll_dice_control
+            size_hint: ( .2, None )
+   
+            font_size: "30sp"
+            text: "Roll"
+   
+            on_press: root._roll_dice()
+   
+         Button:
+            id: reset_ui_control
+            size_hint: ( .2, None )
+   
+            font_size: "30sp"
+            text: "Reset"
+   
+            on_press: root._reset()
+   
+#      ScrollView:
+#         size_hint: ( None, None )
+#         size: ( .5, .5 )
+#         
+#         BoxLayout:
+#            orientation: "vertical"
+#            id: previous_roll_list
