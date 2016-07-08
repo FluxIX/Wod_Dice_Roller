@@ -1,2 +1,3 @@
 *.pyc
 src/wod_dice_roller/.buildozer/
+src/wod_dice_roller/bin/
