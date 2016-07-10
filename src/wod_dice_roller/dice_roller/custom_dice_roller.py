@@ -22,17 +22,17 @@ class CustomWodDiceRoller( WodDiceRoller ):
          # Separate the rolls into classes.
          roll = rolls.pop( 0 )
 
-         if roll in roll_properties.botch_values:
+         if roll_properties.is_botch( roll ):
             if botches_allowed:
                botches += 1
             else:
                failures += 1
-         elif roll == roll_properties.ace_values:
+         elif roll_properties.is_ace( roll ):
             if aces_allowed:
                aces += 1
             else:
                successes += 1
-         elif roll >= roll_properties.target_number:
+         elif roll_properties.is_success( roll ):
             successes += 1
          else:
             failures += 1
