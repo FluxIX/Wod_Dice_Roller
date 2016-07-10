@@ -1,5 +1,8 @@
 from .random_number_generator import StandardRandomNumberGenerator
-from .wod_dice_roller import WodDiceConstants, WodDiceRoller, WodDiceRollResult
+from .roll_properties import RollProperties
+from .uniform_dice_properties import UniformDiceProperties
+from .wod_dice_roll_result import WodDiceRollResult
+from .wod_dice_roller import WodDiceConstants, WodDiceRoller
 
 class DicePoolNormalizationMethods:
    Successes = "successes"
@@ -9,14 +12,32 @@ class CustomWodDiceRoller( WodDiceRoller ):
    def __init__( self, prng = None, **kwargs ):
       self._prng = StandardRandomNumberGenerator()
 
-   def _roll_series( self, quantity, die_type = WodDiceConstants.DefaultDiceType, **kwargs ):
-      dice_minimum_value = kwargs.get( "dice_minimum_value", WodDiceConstants.DefaultDiceMinimumValue )
-      dice_maximum_value = kwargs.get( "dice_maximum_value", WodDiceConstants.DefaultDiceMaximumValue )
-      dice_value_stride = kwargs.get( "dice_stride", WodDiceConstants.DefaultDiceStride )
+   def _roll_series( self, quantity, dice_properties, **kwargs ):
+      return [ self._prng.getRandomItem( dice_properties.get_values( read_only = True ) ) for _ in range( quantity ) ]
 
-      dice_values = list( range( dice_minimum_value, dice_maximum_value + dice_value_stride, dice_value_stride ) )
+   def _partition_rolls( self, roll_properties, rolls, botches_allowed, aces_allowed, **kwargs ):
+      botches = failures = successes = aces = 0
 
-      return [ self._prng.getRandomItem( dice_values ) for _ in range( quantity ) ]
+      while len( rolls ) > 0:
+         # Separate the rolls into classes.
+         roll = rolls.pop( 0 )
+
+         if roll in roll_properties.botch_values:
+            if botches_allowed:
+               botches += 1
+            else:
+               failures += 1
+         elif roll == roll_properties.ace_values:
+            if aces_allowed:
+               aces += 1
+            else:
+               successes += 1
+         elif roll >= roll_properties.target_number:
+            successes += 1
+         else:
+            failures += 1
+
+      return ( botches, failures, successes, aces )
 
    def roll( self, dice_pool, target_number = WodDiceConstants.DefaultTargetNumber, **kwargs ):
       """
@@ -37,16 +58,16 @@ class CustomWodDiceRoller( WodDiceRoller ):
                   if botches == and aces == 0 and successes <= 0 then result = 0
       """
 
-      dice_type = kwargs.get( "dice_type", WodDiceConstants.DefaultDiceType )
       dice_minimum_value = kwargs.get( "dice_minimum_value", WodDiceConstants.DefaultDiceMinimumValue )
       dice_maximum_value = kwargs.get( "dice_maximum_value", WodDiceConstants.DefaultDiceMaximumValue )
+      dice_value_stride = kwargs.get( "dice_stride", WodDiceConstants.DefaultDiceStride )
       explosion_limit = kwargs.get( "dice_explosion_limit", WodDiceConstants.DefaultExplosionLimit )
       allow_botch_on_explosion = kwargs.get( "allow_botch_on_explosion", WodDiceConstants.DefaultAllowBotchOnExplosion )
       target_number_minimum = kwargs.get( "target_number_minimum", WodDiceConstants.DefaultMinimumTargetNumber )
       target_number_maximum = kwargs.get( "target_number_maximum", WodDiceConstants.DefaultMaximumTargetNumber )
       dp_normalization_method = kwargs.get( "dp_norm_method", DicePoolNormalizationMethods.Successes )
 
-      has_explosion_limit = explosion_limit != WodDiceConstants.NoExplosionLimit
+      dice_properties = UniformDiceProperties( dice_minimum_value, dice_maximum_value, dice_value_stride )
 
       all_rolls = []
       net_successes = total_botches = total_failures = total_successes = total_aces = 0
@@ -62,7 +83,7 @@ class CustomWodDiceRoller( WodDiceRoller ):
       else:
          dp_norm_bias = 0
 
-      original_dp_norm_bias = dp_norm_bias
+      roll_properties = RollProperties( dice_properties, dice_pool, original_target_number, explosion_limit, allow_botch_on_explosion, dp_norm_bias )
 
       adjusted_dice_pool = dice_pool
       if dp_normalization_method == DicePoolNormalizationMethods.DicePool:
@@ -71,34 +92,17 @@ class CustomWodDiceRoller( WodDiceRoller ):
          raise ValueError( "Dice pool normalization method ({}) is not valid.".format( dp_normalization_method ) )
 
       if adjusted_dice_pool > 0:
-         rolls = self._roll_series( adjusted_dice_pool, dice_type )
+         rolls = self._roll_series( adjusted_dice_pool, roll_properties.dice_properties )
       else:
          rolls = []
 
       num_rolls = 0
       while len( rolls ) > 0:
-         explosions_valid = not has_explosion_limit or num_rolls < explosion_limit
-         roll_botches = roll_failures = roll_successes = roll_aces = 0
+         explosions_valid = roll_properties.are_explosions_valid( num_rolls )
 
-         while len( rolls ) > 0:
-            # Separate the rolls into classes.
-            roll = rolls.pop( 0 )
-            all_rolls.append( roll )
+         all_rolls.append( rolls[:] )
 
-            if roll == dice_minimum_value:
-               if explosions_valid and ( num_rolls == 0 or allow_botch_on_explosion ):
-                  roll_botches += 1
-               else:
-                  roll_failures += 1
-            elif roll == dice_maximum_value:
-               if explosions_valid:
-                  roll_aces += 1
-               else:
-                  roll_successes += 1
-            elif roll >= target_number:
-               roll_successes += 1
-            else:
-               roll_failures += 1
+         roll_botches, roll_failures, roll_successes, roll_aces = self._partition_rolls( roll_properties, rolls, explosions_valid and ( num_rolls == 0 or roll_properties.allow_botch_on_explosion ), explosions_valid )
 
          total_successes += roll_successes
          total_failures += roll_failures
@@ -107,35 +111,9 @@ class CustomWodDiceRoller( WodDiceRoller ):
 
          # For the rest of the roll processing the failures are ignored.
 
-         processed_roll_successes = roll_successes
-         processed_roll_botches = roll_botches
-         processed_roll_aces = roll_aces
-
-         if processed_roll_botches > 0 or processed_roll_aces > 0:
-            if processed_roll_botches > processed_roll_aces:
-               # The aces will cancel some of the botches. An ace is still treated as a success.
-
-               processed_roll_botches -= processed_roll_aces
-               processed_roll_successes += processed_roll_aces
-               processed_roll_aces = 0
-            else:
-               # The botches will cancel some or all of the aces. The cancelled ace is still treated as a success.
-
-               processed_roll_aces -= processed_roll_botches
-               processed_roll_successes += processed_roll_botches
-               processed_roll_botches = 0
-
-            if processed_roll_aces > 0:
-               # If an excess number of aces, treat all remaining aces as successes and roll the explosions.
-
-               processed_roll_successes += processed_roll_aces
-               rolls.extend( self._roll_series( processed_roll_aces, dice_type ) )
-               processed_roll_aces = 0
-            elif processed_roll_botches > 0:
-               # If an excess number of botches, reduce the number of roll successes by the number of unresolved botches.
-
-               processed_roll_successes -= processed_roll_botches
-               processed_roll_botches = 0
+         processed_roll_successes, dice_to_reroll = self._process_successes( roll_successes, roll_botches, roll_aces )
+         if dice_to_reroll > 0:
+            rolls = self._roll_series( dice_to_reroll, roll_properties.dice_properties )
 
          net_successes += processed_roll_successes
 
@@ -165,8 +143,30 @@ class CustomWodDiceRoller( WodDiceRoller ):
             else:
                net_successes = 0
 
-            dp_norm_bias = 0
-
-      result = WodDiceRollResult( dice_type, dice_pool, original_target_number, original_dp_norm_bias, all_rolls, net_successes, unresolved_botches, total_botches, total_failures, total_successes, total_aces )
+      result = WodDiceRollResult( roll_properties, all_rolls, net_successes, unresolved_botches, total_botches, total_failures, total_successes, total_aces )
 
       return result
+
+   def _process_successes( self, rolled_successes, rolled_botches, rolled_aces ):
+      if rolled_successes < 0:
+         raise ValueError( "Rolled successes ({:d}) cannot be negative.".format( rolled_successes ) )
+      elif rolled_botches < 0:
+         raise ValueError( "Rolled botches ({:d}) cannot be negative.".format( rolled_botches ) )
+      elif rolled_aces < 0:
+         raise ValueError( "Rolled successes ({:d}) cannot be negative.".format( rolled_aces ) )
+      else:
+         successes = rolled_successes + rolled_aces # An ace is always still as success
+         dice_to_reroll = 0
+
+         if rolled_botches > rolled_aces:
+            # The aces will cancel some of the botches. Any excess botches are subtracted from the success total.
+
+            net_botches = rolled_botches - rolled_aces
+            successes -= net_botches
+         else:
+            # The botches will cancel some or all of the aces.
+
+            net_aces = rolled_aces - rolled_botches
+            dice_to_reroll = net_aces
+
+         return ( successes, dice_to_reroll )

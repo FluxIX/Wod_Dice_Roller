@@ -1,11 +1,8 @@
-from gi.overrides.keysyms import colon
 from kivy.lang import Builder
 from kivy.uix.screenmanager import Screen
-import math
 
 from ..dice_roller.custom_dice_roller import CustomWodDiceRoller
 from ..dice_roller.wod_dice_roller import WodDiceConstants
-
 
 Builder.load_file( "ui/roll_screen.kv" )
 
@@ -27,6 +24,7 @@ class RollScreen( Screen ):
       self._output = self.ids.roll_result_display
 
       self._reset()
+
    def _roll_dice( self ):
       dice_pool = self._dp.selected_value
       target_number = self._tn.selected_value
@@ -95,11 +93,11 @@ class RollScreen( Screen ):
       return result
 
    def _get_dice_value_color( self, dice_value, roll_result ):
-      if dice_value == 1:
+      if roll_result.roll_properties.is_botch( dice_value ):
          result = "ff0000"
-      elif dice_value == roll_result.dice_type:
+      elif roll_result.roll_properties.is_ace( dice_value ):
          result = "0000ff"
-      elif dice_value >= roll_result.target_number:
+      elif roll_result.roll_properties.is_success( dice_value ):
          result = "ffffff"
       else: # is a failure
          result = "fff000"
