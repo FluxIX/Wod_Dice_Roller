@@ -6,7 +6,7 @@ if __debug__:
 
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
-from wod_dice_roller.ui.roll_screen import RollScreen
+from roll_screen import RollScreen
 
 class WodDiceRollerApp( App ):
    def build( self ):

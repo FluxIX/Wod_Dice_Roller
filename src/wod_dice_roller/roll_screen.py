@@ -1,13 +1,12 @@
 from kivy.lang import Builder
 from kivy.uix.screenmanager import Screen
-import kivy
 
-from ..dice_roller.custom_dice_roller import CustomWodDiceRoller
-from ..dice_roller.wod_dice_roller import WodDiceConstants
+from dice_roller.custom_dice_roller import CustomWodDiceRoller
+from dice_roller.wod_dice_roller import WodDiceConstants
+from kivy.garden.roulette import Roulette
+from utils.kivy.version import get_version
 
-kivy.require( "1.9.2" ) # For Label Strike-through support
-
-Builder.load_file( "ui/roll_screen.kv" )
+Builder.load_file( "roll_screen.kv" )
 
 class _ResultColors:
    ItemSeparator = "ffffff"
@@ -167,6 +166,8 @@ class RollScreen( Screen ):
       return ( suppressed_reroll_indexes, all_index_cancellations )
 
    def _get_roll_string( self, roll_result ):
+      apply_strikethough = get_version().gte_version( [ 1, 9, 2 ] ) # 1.9.2 is needed for the strike-through effect
+
       pieces = [ "[color={}]{:d}[/color]\n".format( self._get_result_color( roll_result.result ), roll_result.result ) ]
 
       roll_list = roll_result.sorted_rolls
@@ -175,7 +176,7 @@ class RollScreen( Screen ):
       for index, roll in enumerate( roll_list ):
          piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll, roll_result, index in suppressed_reroll_indexes ), roll )
 
-         if index in index_cancellations:
+         if apply_strikethough and index in index_cancellations:
             piece = "[s]{}[/s]".format( piece )
 
          pieces.append( piece )
