@@ -1,10 +1,27 @@
 from kivy.lang import Builder
 from kivy.uix.screenmanager import Screen
+import kivy
 
 from ..dice_roller.custom_dice_roller import CustomWodDiceRoller
 from ..dice_roller.wod_dice_roller import WodDiceConstants
 
+kivy.require( "1.9.2" ) # For Label Strike-through support
+
 Builder.load_file( "ui/roll_screen.kv" )
+
+class _ResultColors:
+   ItemSeparator = "ffffff"
+
+   RollBotch = "ff0000"
+   RollFailure = "fff000"
+   RollSuccess = "ffffff"
+   RollAce_Suppressed = "00ff00"
+   RollAce_Unsuppressed = "0000ff"
+
+   ResultBotch = "ff0000"
+   ResultFailure = "fff000"
+   ResultSuccess_MaxHuman = "4169E1"
+   ResultSuccess_MaxSuperhuman = "9932CC"
 
 class RollScreen( Screen ):
    _default_title = "Roll"
@@ -73,15 +90,15 @@ class RollScreen( Screen ):
 
    def _get_result_color( self, roll_result ):
       if roll_result < 0:
-         result = "ff0000"
+         result = _ResultColors.ResultBotch
       elif roll_result == 0:
-         result = "fff000"
+         result = _ResultColors.ResultFailure
       else:
          human_tier_limit = 5
          superhuman_tier_limit = 10
-         base_color = "ffffff"
-         max_human_tier_color = "4169E1"
-         max_superhuman_color = "9932CC"
+         base_color = _ResultColors.ResultFailure
+         max_human_tier_color = _ResultColors.ResultSuccess_MaxHuman
+         max_superhuman_color = _ResultColors.ResultSuccess_MaxSuperhuman
 
          if roll_result <= human_tier_limit: # human tier
             result = self._to_hex_color( self._apply_gradient( roll_result, human_tier_limit, self._color_str_to_list( base_color ), self._color_str_to_list( max_human_tier_color ) ) )
@@ -92,27 +109,78 @@ class RollScreen( Screen ):
 
       return result
 
-   def _get_dice_value_color( self, dice_value, roll_result ):
+   def _get_dice_value_color( self, dice_value, roll_result, is_suppressed ):
       if roll_result.roll_properties.is_botch( dice_value ):
-         result = "ff0000"
+         result = _ResultColors.RollBotch
       elif roll_result.roll_properties.is_ace( dice_value ):
-         result = "0000ff"
+         if is_suppressed:
+            result = _ResultColors.RollAce_Suppressed
+         else:
+            result = _ResultColors.RollAce_Unsuppressed
       elif roll_result.roll_properties.is_success( dice_value ):
-         result = "ffffff"
+         result = _ResultColors.RollSuccess
       else: # is a failure
-         result = "fff000"
+         result = _ResultColors.RollFailure
 
       return result
+
+   def _get_modified_indexes( self, roll_result, roll_list ):
+      cancelled_botch_indexes = []
+      cancelled_success_indexes = []
+      suppressed_reroll_indexes = []
+
+      botch_indexes = []
+      success_indexes = []
+      aces_indexes = []
+
+      for index, roll in enumerate( roll_list ):
+         if roll_result.roll_properties.is_botch( roll ):
+            botch_indexes.append( index )
+         elif roll_result.roll_properties.is_ace( roll ):
+            aces_indexes.append( index )
+         elif roll_result.roll_properties.is_success( roll ):
+            success_indexes.append( index )
+
+      ace_count = len( aces_indexes )
+      success_indexes_sorted = False
+
+      while len( botch_indexes ) > 0 and ( len( success_indexes ) > 0 or len( aces_indexes ) > 0 ):
+         botch_index = botch_indexes.pop( 0 )
+
+         cancelled_botch_indexes.append( botch_index )
+
+         if len( suppressed_reroll_indexes ) < ace_count: # reroll is suppressed
+            ace_index = aces_indexes.pop() # pop the last ace index
+
+            suppressed_reroll_indexes.append( ace_index )
+            success_indexes.append( ace_index )
+         else: # A success is being cancelled
+            if not success_indexes_sorted:
+               success_indexes.sort( key = lambda item: roll_list[ item ] )
+               success_indexes_sorted = True
+
+            success_index = success_indexes.pop( 0 ) # pop the index to the smallest value
+            cancelled_success_indexes.append( success_index )
+
+      all_index_cancellations = cancelled_botch_indexes + cancelled_success_indexes
+
+      return ( suppressed_reroll_indexes, all_index_cancellations )
 
    def _get_roll_string( self, roll_result ):
       pieces = [ "[color={}]{:d}[/color]\n".format( self._get_result_color( roll_result.result ), roll_result.result ) ]
 
-      length = len( roll_result.sorted_rolls )
-      for index, roll in enumerate( roll_result.sorted_rolls ):
-         piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll, roll_result ), roll )
+      roll_list = roll_result.sorted_rolls
+      suppressed_reroll_indexes, index_cancellations = self._get_modified_indexes( roll_result, roll_list )
+      length = len( roll_list )
+      for index, roll in enumerate( roll_list ):
+         piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll, roll_result, index in suppressed_reroll_indexes ), roll )
+
+         if index in index_cancellations:
+            piece = "[s]{}[/s]".format( piece )
+
          pieces.append( piece )
 
          if index + 1 < length:
-            pieces.append( "[color=ffffff], [/color]" )
+            pieces.append( "[color={}], [/color]".format( _ResultColors.ItemSeparator ) )
 
       return "".join( pieces )
