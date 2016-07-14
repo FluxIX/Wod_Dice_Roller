@@ -1,0 +1,4 @@
+Android:
+   # Use the new build method
+   buildozer android_new debug deploy run
+
