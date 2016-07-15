@@ -14,7 +14,7 @@ import os.path
 KV_PATH = os.path.abspath( os.path.join( os.path.dirname( __file__ ), 'ui' ) )
 resource_add_path( KV_PATH )
 
-from .ui.roll_screen import RollScreen
+from ui.roll_screen import RollScreen
 
 class WodDiceRollerApp( App ):
    def build( self ):
