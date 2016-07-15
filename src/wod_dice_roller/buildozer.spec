@@ -36,14 +36,14 @@ version = 0.1
 
 # (list) Application requirements
 # comma seperated e.g. requirements = sqlite3,kivy
-requirements = kivy
+requirements = kivy, python2
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
 
 # (list) Garden requirements
-garden_requirements = tickline, roulette
+garden_requirements = tickline, roulette, roulettescroll
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/data/presplash.png
