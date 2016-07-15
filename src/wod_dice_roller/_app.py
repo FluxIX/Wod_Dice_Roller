@@ -7,6 +7,7 @@ if __debug__:
 from kivy.app import App
 from kivy.resources import resource_add_path
 from kivy.uix.screenmanager import ScreenManager
+import kivy
 import os.path
 
 # Add the 'ui' directory to the resource path before import the UI components.
@@ -14,7 +15,10 @@ import os.path
 KV_PATH = os.path.abspath( os.path.join( os.path.dirname( __file__ ), 'ui' ) )
 resource_add_path( KV_PATH )
 
-from ui.roll_screen import RollScreen
+if kivy.platform == "android": # :KLUDGE p4a appears to mishandle relative imports
+   from ui.roll_screen import RollScreen
+else:
+   from .ui.roll_screen import RollScreen
 
 class WodDiceRollerApp( App ):
    def build( self ):

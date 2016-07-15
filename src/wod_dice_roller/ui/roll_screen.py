@@ -1,9 +1,15 @@
 from kivy.lang import Builder
 from kivy.uix.screenmanager import Screen
+import kivy
 
-from dice_roller.custom_dice_roller import CustomWodDiceRoller
-from dice_roller.wod_dice_roller import WodDiceConstants
-from utils.kivy.version import get_version
+if kivy.platform == "android": # :KLUDGE p4a appears to mishandle relative imports
+   from dice_roller.custom_dice_roller import CustomWodDiceRoller
+   from dice_roller.wod_dice_roller import WodDiceConstants
+   from utils.kivy.version import get_version
+else:
+   from ..dice_roller.custom_dice_roller import CustomWodDiceRoller
+   from ..dice_roller.wod_dice_roller import WodDiceConstants
+   from ..utils.kivy.version import get_version
 
 Builder.load_file( "roll_screen.kv" )
 
