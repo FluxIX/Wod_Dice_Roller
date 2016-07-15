@@ -5,8 +5,16 @@ if __debug__:
    import traceback
 
 from kivy.app import App
+from kivy.resources import resource_add_path
 from kivy.uix.screenmanager import ScreenManager
-from roll_screen import RollScreen
+import os.path
+
+# Add the 'ui' directory to the resource path before import the UI components.
+# From: https://github.com/kivy/kivy/issues/4458
+KV_PATH = os.path.abspath( os.path.join( os.path.dirname( __file__ ), 'ui' ) )
+resource_add_path( KV_PATH )
+
+from .ui.roll_screen import RollScreen
 
 class WodDiceRollerApp( App ):
    def build( self ):
