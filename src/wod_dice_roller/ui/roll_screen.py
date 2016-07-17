@@ -190,3 +190,25 @@ class RollScreen( Screen ):
             pieces.append( "[color={}], [/color]".format( _ResultColors.ItemSeparator ) )
 
       return "".join( pieces )
+
+   def on_start( self ):
+      self._save_ui_state()
+
+   def on_resume( self ):
+      self._restore_ui_state()
+
+   def on_pause( self ):
+      self._save_ui_state()
+
+      # If bool( return value ) is False then on_stop is called.
+      return True
+
+   def _save_ui_state( self ):
+      self._output_text = self._output.text
+      self._dice_pool = self._dp.selected_value
+      self._target_number = self._tn.selected_value
+
+   def _restore_ui_state( self ):
+      self._output.text = self._output_text
+      self._dp.selected_value = self._dice_pool
+      self._tn.selected_value = self._target_number

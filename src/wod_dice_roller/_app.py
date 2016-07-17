@@ -31,6 +31,10 @@ class WodDiceRollerApp( App ):
 
       return manager
 
+   def on_pause( self ):
+      # If bool( return value ) is False then on_stop is called.
+      return True
+
 def run_app( args = None ):
    result = 0
 
