@@ -113,75 +113,32 @@ class RollScreen( Screen ):
 
       return result
 
-   def _get_dice_value_color( self, dice_value, roll_result, is_suppressed ):
-      if roll_result.roll_properties.is_botch( dice_value ):
+   def _get_dice_value_color( self, roll_category ):
+      if roll_category.is_botch:
          result = _ResultColors.RollBotch
-      elif roll_result.roll_properties.is_ace( dice_value ):
-         if is_suppressed:
+      elif roll_category.is_ace:
+         if roll_category.is_suppressed:
             result = _ResultColors.RollAce_Suppressed
          else:
             result = _ResultColors.RollAce_Unsuppressed
-      elif roll_result.roll_properties.is_success( dice_value ):
+      elif roll_category.is_success:
          result = _ResultColors.RollSuccess
       else: # is a failure
          result = _ResultColors.RollFailure
 
       return result
 
-   def _get_modified_indexes( self, roll_result, roll_list ):
-      cancelled_botch_indexes = []
-      cancelled_success_indexes = []
-      suppressed_reroll_indexes = []
-
-      botch_indexes = []
-      success_indexes = []
-      aces_indexes = []
-
-      for index, roll in enumerate( roll_list ):
-         if roll_result.roll_properties.is_botch( roll ):
-            botch_indexes.append( index )
-         elif roll_result.roll_properties.is_ace( roll ):
-            aces_indexes.append( index )
-         elif roll_result.roll_properties.is_success( roll ):
-            success_indexes.append( index )
-
-      ace_count = len( aces_indexes )
-      success_indexes_sorted = False
-
-      while len( botch_indexes ) > 0 and ( len( success_indexes ) > 0 or len( aces_indexes ) > 0 ):
-         botch_index = botch_indexes.pop( 0 )
-
-         cancelled_botch_indexes.append( botch_index )
-
-         if len( suppressed_reroll_indexes ) < ace_count: # reroll is suppressed
-            ace_index = aces_indexes.pop() # pop the last ace index
-
-            suppressed_reroll_indexes.append( ace_index )
-            success_indexes.append( ace_index )
-         else: # A success is being cancelled
-            if not success_indexes_sorted:
-               success_indexes.sort( key = lambda item: roll_list[ item ] )
-               success_indexes_sorted = True
-
-            success_index = success_indexes.pop( 0 ) # pop the index to the smallest value
-            cancelled_success_indexes.append( success_index )
-
-      all_index_cancellations = cancelled_botch_indexes + cancelled_success_indexes
-
-      return ( suppressed_reroll_indexes, all_index_cancellations )
-
    def _get_roll_string( self, roll_result ):
       apply_strikethough = get_version().gte_version( [ 1, 9, 2 ] ) # 1.9.2 is needed for the strike-through effect
 
       pieces = [ "[color={}]{:d}[/color]\n".format( self._get_result_color( roll_result.result ), roll_result.result ) ]
 
-      roll_list = roll_result.sorted_rolls
-      suppressed_reroll_indexes, index_cancellations = self._get_modified_indexes( roll_result, roll_list )
-      length = len( roll_list )
-      for index, roll in enumerate( roll_list ):
-         piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll, roll_result, index in suppressed_reroll_indexes ), roll )
+      categorized_rolls = roll_result.get_sorted_rolls( categorize = True )
+      length = len( categorized_rolls )
+      for index, roll in enumerate( categorized_rolls ):
+         piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll.category ), roll.roll )
 
-         if apply_strikethough and index in index_cancellations:
+         if apply_strikethough and roll.category.is_cancelled:
             piece = "[s]{}[/s]".format( piece )
 
          pieces.append( piece )

@@ -1,7 +1,7 @@
 from .random_number_generator import StandardRandomNumberGenerator
 from .roll_properties import RollProperties
 from .uniform_dice_properties import UniformDiceProperties
-from .wod_dice_roll_result import WodDiceRollResult
+from .wod_dice_roll_result import WodDiceRollResult, DiceRollValueCategory, DiceRollValueCategoryFlags
 from .wod_dice_roller import WodDiceConstants, WodDiceRoller
 
 class DicePoolNormalizationMethods:
@@ -16,28 +16,41 @@ class CustomWodDiceRoller( WodDiceRoller ):
       return [ self._prng.getRandomItem( dice_properties.get_values( read_only = True ) ) for _ in range( quantity ) ]
 
    def _partition_rolls( self, roll_properties, rolls, botches_allowed, aces_allowed, **kwargs ):
-      botches = failures = successes = aces = 0
+      botches = []
+      failures = []
+      successes = []
+      aces = []
 
-      while len( rolls ) > 0:
+      categories = []
+
+      for index, roll in enumerate( rolls ):
          # Separate the rolls into classes.
-         roll = rolls.pop( 0 )
 
          if roll_properties.is_botch( roll ):
             if botches_allowed:
-               botches += 1
+               partition = botches
+               category_value = DiceRollValueCategoryFlags.Botch
             else:
-               failures += 1
+               partition = failures
+               category_value = DiceRollValueCategoryFlags.Failure
          elif roll_properties.is_ace( roll ):
             if aces_allowed:
-               aces += 1
+               partition = aces
+               category_value = DiceRollValueCategoryFlags.Ace
             else:
-               successes += 1
+               partition = successes
+               category_value = DiceRollValueCategoryFlags.Success
          elif roll_properties.is_success( roll ):
-            successes += 1
+            partition = successes
+            category_value = DiceRollValueCategoryFlags.Success
          else:
-            failures += 1
+            partition = failures
+            category_value = DiceRollValueCategoryFlags.Failure
 
-      return ( botches, failures, successes, aces )
+         partition.append( index )
+         categories.append( DiceRollValueCategory( category_value ) )
+
+      return ( categories, botches, failures, successes, aces )
 
    def roll( self, dice_pool, target_number = WodDiceConstants.DefaultTargetNumber, **kwargs ):
       """
@@ -70,6 +83,7 @@ class CustomWodDiceRoller( WodDiceRoller ):
       dice_properties = UniformDiceProperties( dice_minimum_value, dice_maximum_value, dice_value_stride )
 
       all_rolls = []
+      all_roll_categories = []
       net_successes = total_botches = total_failures = total_successes = total_aces = 0
 
       original_target_number = target_number
@@ -100,22 +114,34 @@ class CustomWodDiceRoller( WodDiceRoller ):
       while len( rolls ) > 0:
          explosions_valid = roll_properties.are_explosions_valid( num_rolls )
 
-         all_rolls.append( rolls[:] )
+         all_rolls.append( rolls )
 
-         roll_botches, roll_failures, roll_successes, roll_aces = self._partition_rolls( roll_properties, rolls, explosions_valid and ( num_rolls == 0 or roll_properties.allow_botch_on_explosion ), explosions_valid )
+         roll_categories, roll_botches, roll_failures, roll_successes, roll_aces = self._partition_rolls( roll_properties, rolls, explosions_valid and ( num_rolls == 0 or roll_properties.allow_botch_on_explosion ), explosions_valid )
 
-         total_successes += roll_successes
-         total_failures += roll_failures
-         total_aces += roll_aces
-         total_botches += roll_botches
+         total_successes += len( roll_successes )
+         total_failures += len( roll_failures )
+         total_aces += len( roll_aces )
+         total_botches += len( roll_botches )
 
          # For the rest of the roll processing the failures are ignored.
 
-         processed_roll_successes, dice_to_reroll = self._process_successes( roll_successes, roll_botches, roll_aces )
+         processed_roll_successes, dice_to_reroll, cancelled_indicies, suppressed_indicies = self._process_successes( rolls, roll_categories, roll_successes, roll_botches, roll_aces )
+
+         for index in cancelled_indicies:
+            category = roll_categories[ index ]
+            category._set_value( category.value | DiceRollValueCategoryFlags.Cancelled )
+
+         for index in suppressed_indicies:
+            category = roll_categories[ index ]
+            category._set_value( category.value | DiceRollValueCategoryFlags.Suppressed )
+
          if dice_to_reroll > 0:
             rolls = self._roll_series( dice_to_reroll, roll_properties.dice_properties )
+         else:
+            rolls = []
 
          net_successes += processed_roll_successes
+         all_roll_categories.append( roll_categories )
 
          num_rolls += 1
 
@@ -143,30 +169,80 @@ class CustomWodDiceRoller( WodDiceRoller ):
             else:
                net_successes = 0
 
-      result = WodDiceRollResult( roll_properties, all_rolls, net_successes, unresolved_botches, total_botches, total_failures, total_successes, total_aces )
+      result = WodDiceRollResult( roll_properties, all_rolls, all_roll_categories, net_successes, unresolved_botches, total_botches, total_failures, total_successes, total_aces )
 
       return result
 
-   def _process_successes( self, rolled_successes, rolled_botches, rolled_aces ):
-      if rolled_successes < 0:
-         raise ValueError( "Rolled successes ({:d}) cannot be negative.".format( rolled_successes ) )
-      elif rolled_botches < 0:
-         raise ValueError( "Rolled botches ({:d}) cannot be negative.".format( rolled_botches ) )
-      elif rolled_aces < 0:
-         raise ValueError( "Rolled successes ({:d}) cannot be negative.".format( rolled_aces ) )
+   def _process_successes( self, rolls, categories, rolled_successes, rolled_botches, rolled_aces ):
+      ace_count = len( rolled_aces )
+      success_count = len( rolled_successes )
+      botch_count = len( rolled_botches )
+
+      suppressed_ace_indicies = []
+      cancelled_botch_indicies = []
+      cancelled_success_indicies = []
+      cancelled_ace_indicies = []
+
+      if botch_count > 0:
+         initial_state = 0
+         ace_suppress_state = initial_state + 1
+         success_cancel_state = ace_suppress_state + 1
+         ace_cancel_state = success_cancel_state + 1
+         finished_state = ace_cancel_state + 1
+
+         sorted_botches = sorted( rolled_botches, reverse = True, key = lambda index: rolls[ index ] )
+         sorted_successes = sorted( rolled_successes, key = lambda index: rolls[ index ] )
+         sorted_aces = sorted( rolled_aces, key = lambda index: rolls[ index ] )
+
+         def get_next_state( current_state = None ):
+            if current_state is None:
+               current_state = initial_state
+
+            if current_state == initial_state and len( sorted_aces ) > 0:
+               current_state = ace_suppress_state
+               target_count = ace_count
+            elif current_state in [ initial_state, ace_suppress_state ] and len( sorted_successes ) > 0:
+               current_state = success_cancel_state
+               target_count = success_count
+            elif current_state in [ initial_state, ace_suppress_state, success_cancel_state ] and len( sorted_aces ) > 0:
+               current_state = ace_cancel_state
+               target_count = ace_count
+            else:
+               current_state = finished_state
+               target_count = None
+
+            current_state_pass_count = 0
+
+            return ( current_state, target_count, current_state_pass_count )
+
+         current_state, target_count, current_state_pass_count = get_next_state()
+
+         for botch_index in sorted_botches:
+            cancelled_botch_indicies.append( botch_index )
+            current_state_pass_count += 1
+
+            if current_state == ace_suppress_state:
+               suppressed_ace_indicies.append( sorted_aces[ len( suppressed_ace_indicies ) ] )
+
+               if current_state_pass_count == target_count:
+                  current_state, target_count, current_state_pass_count = get_next_state( current_state )
+            elif current_state == success_cancel_state:
+               cancelled_success_indicies.append( sorted_successes[ len( cancelled_success_indicies ) ] )
+
+               if current_state_pass_count == target_count:
+                  current_state, target_count, current_state_pass_count = get_next_state( current_state )
+            elif current_state == ace_cancel_state:
+               cancelled_ace_indicies.append( sorted_aces[ len( cancelled_ace_indicies ) ] )
+
+               if current_state_pass_count == target_count:
+                  current_state, target_count, current_state_pass_count = get_next_state( current_state )
+            else: # if current_state == finished_state:
+               break
+
+         successes = success_count - len( cancelled_success_indicies ) + ace_count - len( cancelled_ace_indicies ) - ( botch_count - len( cancelled_botch_indicies ) )
+         dice_to_reroll = ace_count - len( suppressed_ace_indicies )
       else:
-         successes = rolled_successes + rolled_aces # An ace is always still as success
-         dice_to_reroll = 0
+         dice_to_reroll = ace_count
+         successes = success_count + ace_count
 
-         if rolled_botches > rolled_aces:
-            # The aces will cancel some of the botches. Any excess botches are subtracted from the success total.
-
-            net_botches = rolled_botches - rolled_aces
-            successes -= net_botches
-         else:
-            # The botches will cancel some or all of the aces.
-
-            net_aces = rolled_aces - rolled_botches
-            dice_to_reroll = net_aces
-
-         return ( successes, dice_to_reroll )
+      return ( successes, dice_to_reroll, cancelled_ace_indicies + cancelled_success_indicies + cancelled_botch_indicies, suppressed_ace_indicies )
