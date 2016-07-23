@@ -58,38 +58,41 @@
                   density: 3.25
 
                   font_size: "20sp"
-            
-      AnchorLayout:
-         anchor_x: "center"
-         anchor_y: "bottom"
-
-         size_hint: ( 1, .5 )
-
-         ToggleButton:
-            id: allow_explosion_control
-            size_hint: ( .5, .8 )
-
-            state: "down"
-
-            text: "Allow Explosions"
 
       BoxLayout:
-         orientation: "horizontal"
+         orientation: "vertical"
+
+         size_hint_x: 1
+
+         AnchorLayout:
+            anchor_x: "center"
+
+            ToggleButton:
+               id: allow_explosion_control
+               size_hint: ( .5, None )
+
+               state: "down"
+
+               text: "Allow Explosions"
+               font_size: "20sp"
+
+         BoxLayout:
+            orientation: "horizontal"
+         
+            Button:
+               id: roll_dice_control
+               size_hint: ( .2, None )
       
-         Button:
-            id: roll_dice_control
-            size_hint: ( .2, None )
-   
-            font_size: "30sp"
-            text: "Roll"
-   
-            on_press: root._roll_dice()
-   
-         Button:
-            id: reset_ui_control
-            size_hint: ( .2, None )
-   
-            font_size: "30sp"
-            text: "Reset"
-   
-            on_press: root._reset()
+               font_size: "30sp"
+               text: "Roll"
+      
+               on_press: root._roll_dice()
+      
+            Button:
+               id: reset_ui_control
+               size_hint: ( .2, None )
+      
+               font_size: "30sp"
+               text: "Reset"
+      
+               on_press: root._reset()
