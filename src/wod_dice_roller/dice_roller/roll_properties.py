@@ -59,7 +59,7 @@ class RollProperties( object ):
    explosion_limit = property( fget = get_explosion_limit )
 
    def _has_explosion_limit( self ):
-      return self.explosion_limit > 0
+      return self.explosion_limit >= 0
 
    has_explosion_limit = property( fget = _has_explosion_limit )
 

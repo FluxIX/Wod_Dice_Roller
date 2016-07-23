@@ -42,6 +42,7 @@ class RollScreen( Screen ):
 
       self._dp = self.ids.dice_pool_selector
       self._tn = self.ids.target_number_selector
+      self._ae = self.ids.allow_explosion_control
       self._output = self.ids.roll_result_display
 
       self._reset()
@@ -50,7 +51,10 @@ class RollScreen( Screen ):
       dice_pool = self._dp.selected_value
       target_number = self._tn.selected_value
 
-      roll_result = self._roller.roll( dice_pool, target_number )
+      if self._ae.state == "down":
+         roll_result = self._roller.roll( dice_pool, target_number )
+      else:
+         roll_result = self._roller.roll( dice_pool, target_number, dice_explosion_limit = 0 )
 
       self._output.text = self._get_roll_string( roll_result )
 
