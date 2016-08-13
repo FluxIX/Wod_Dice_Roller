@@ -88,7 +88,7 @@ class DiceRollValueCategory( object ):
       elif self.is_failure and not self.is_special: # is failure
          result = 2
       elif self.is_success and not self.is_special: # is success
-         if self.is_suppressed:
+         if self.is_cancelled:
             result = 3
          else:
             result = 4
