@@ -152,22 +152,18 @@ class CustomWodDiceRoller( WodDiceRoller ):
          unresolved_botches = 0
 
       if dp_normalization_method == DicePoolNormalizationMethods.Successes:
-         # The dice pool normalization cannot cause a roll to botch (but it can cause it to fail), although it may cause a roll which would have otherwise botched to simply fail or even succeed.
+         # The dice pool normalization cannot cause a roll to botch (but it can cause it to fail), although it may cause a roll which would have otherwise botched to simply fail or even succeed. A botch can be made more severe by the dice pool normalization.
 
          if unresolved_botches > 0:
-            if unresolved_botches > dp_norm_bias:
+            if dp_norm_bias < 0 or unresolved_botches > dp_norm_bias: # If the bias makes the botch more severe or if the unresolved botch count is reduced but still remains positive
                unresolved_botches -= dp_norm_bias
-               dp_norm_bias = 0
-            else:
-               dp_norm_bias -= unresolved_botches
+            elif dp_norm_bias > 0: # The roll may succeed as the bias is adding successes and is at least equal to the number of unresolved botches
+               excess_dp_norm_bias = dp_norm_bias - unresolved_botches
                unresolved_botches = 0
 
-            net_successes += dp_norm_bias
+               net_successes += excess_dp_norm_bias
          else:
-            if net_successes > dp_norm_bias:
-               net_successes -= dp_norm_bias
-            else:
-               net_successes = 0
+            net_successes = max( net_successes + dp_norm_bias, 0 )
 
       result = WodDiceRollResult( roll_properties, all_rolls, all_roll_categories, net_successes, unresolved_botches, total_botches, total_failures, total_successes, total_aces )
 
@@ -190,9 +186,12 @@ class CustomWodDiceRoller( WodDiceRoller ):
          ace_cancel_state = success_cancel_state + 1
          finished_state = ace_cancel_state + 1
 
-         sorted_botches = sorted( rolled_botches, reverse = True, key = lambda index: rolls[ index ] )
-         sorted_successes = sorted( rolled_successes, key = lambda index: rolls[ index ] )
-         sorted_aces = sorted( rolled_aces, key = lambda index: rolls[ index ] )
+         def get_roll_value( index ):
+            return rolls[ index ]
+
+         sorted_botches = sorted( rolled_botches, reverse = True, key = get_roll_value )
+         sorted_successes = sorted( rolled_successes, key = get_roll_value )
+         sorted_aces = sorted( rolled_aces, key = get_roll_value )
 
          def get_next_state( current_state = None ):
             if current_state is None:
@@ -237,6 +236,8 @@ class CustomWodDiceRoller( WodDiceRoller ):
                if current_state_pass_count == target_count:
                   current_state, target_count, current_state_pass_count = get_next_state( current_state )
             else: # if current_state == finished_state:
+               cancelled_botch_indicies.pop() # The botch wasn't actually cancelled so we correct the bookkeeping
+
                break
 
          successes = success_count - len( cancelled_success_indicies ) + ace_count - len( cancelled_ace_indicies ) - ( botch_count - len( cancelled_botch_indicies ) )
