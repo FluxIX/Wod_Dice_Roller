@@ -114,7 +114,7 @@ class RollProperties( object ):
          else:
             result = []
 
-         self._botch_values = result
+         self._set_botch_values( result )
 
       return self._botch_values
 
@@ -134,7 +134,7 @@ class RollProperties( object ):
          else:
             result = []
 
-         self._ace_values = result
+         self._set_ace_values( result )
 
       return self._ace_values
 
