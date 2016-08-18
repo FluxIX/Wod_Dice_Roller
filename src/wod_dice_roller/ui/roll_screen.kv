@@ -1,37 +1,55 @@
 #:import Roulette kivy.garden.roulette.Roulette
 
 <RollScreen>
-   BoxLayout:
-      orientation: "vertical"
-      
+   GridLayout:
+      cols: 1
+
       AnchorLayout:
          anchor_x: "center"
-         anchor_y: "center"
 
-         Label:
-            id: roll_result_display
-            size_hint: ( 1, .2 )
-            
-            text_size: ( self.width, None )
-            font_size: "40sp"
-            halign: "center"
-            valign: "middle"
-            markup: True
+         GridLayout:
+            cols: 1
+
+            Label:
+               id: roll_result_display
+               size_hint: ( 1, .75 )
+
+               text_size: ( self.width, None )
+               font_size: "35sp"
+               halign: "center"
+               valign: "middle"
+               markup: True
+
+            AnchorLayout:
+               anchor_x: "center"
+
+               ToggleButton:
+                  id: display_sorted_roll
+                  size_hint: ( .5, .25 )
+
+                  state: "down"
+                  on_state: root._update_displayed_roll()
+
+                  text: "Sort Rolls"
+                  font_size: "20sp"
 
       BoxLayout:
          orientation: "horizontal"
-         
-         BoxLayout:
-            orientation: "vertical"
-         
+         size_hint_y: .35
+
+         GridLayout:
+            cols: 1
+
             Label:
-               font_size: "30sp"
+               size_hint_y: .25
+
+               font_size: "25sp"
                text: "Dice Pool"
-   
+
             AnchorLayout:
                anchor_x: "center"
                anchor_y: "top"
-            
+
                Roulette:
                   id: dice_pool_selector
                   min_index: -10
@@ -39,14 +57,16 @@
                   density: 5.25
 
                   font_size: "20sp"
-            
-         BoxLayout:
-            orientation: "vertical"
-         
+
+         GridLayout:
+            cols: 1
+
             Label:
-               font_size: "30sp"
+               size_hint_y: .25
+
+               font_size: "25sp"
                text: "Target Number"
-         
+
             AnchorLayout:
                anchor_x: "center"
                anchor_y: "top"
@@ -61,6 +81,7 @@
 
       BoxLayout:
          orientation: "vertical"
+         size_hint_y: .25
 
          size_hint_x: 1
 
@@ -69,7 +90,7 @@
 
             ToggleButton:
                id: allow_explosion_control
-               size_hint: ( .5, None )
+               size_hint_x: .5
 
                state: "down"
 
@@ -78,21 +99,19 @@
 
          BoxLayout:
             orientation: "horizontal"
-         
+
             Button:
                id: roll_dice_control
-               size_hint: ( .2, None )
-      
-               font_size: "30sp"
+
+               font_size: "25sp"
                text: "Roll"
-      
+
                on_press: root._roll_dice()
-      
+
             Button:
                id: reset_ui_control
-               size_hint: ( .2, None )
-      
-               font_size: "30sp"
+
+               font_size: "25sp"
                text: "Reset"
-      
+
                on_press: root._reset()
