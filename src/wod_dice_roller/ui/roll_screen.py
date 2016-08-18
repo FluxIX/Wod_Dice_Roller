@@ -43,7 +43,10 @@ class RollScreen( Screen ):
       self._dp = self.ids.dice_pool_selector
       self._tn = self.ids.target_number_selector
       self._ae = self.ids.allow_explosion_control
+      self._display_sorted_roll_control = self.ids.display_sorted_roll
       self._output = self.ids.roll_result_display
+
+      self._last_roll_result = None
 
       self._reset()
 
@@ -56,7 +59,9 @@ class RollScreen( Screen ):
       else:
          roll_result = self._roller.roll( dice_pool, target_number, dice_explosion_limit = 0 )
 
-      self._output.text = self._get_roll_string( roll_result )
+      self._last_roll_result = roll_result
+
+      self._update_displayed_roll()
 
    def _reset( self ):
       self._dp.select_and_center( 5 )
@@ -137,20 +142,48 @@ class RollScreen( Screen ):
 
       pieces = [ "[color={}]{:d}[/color]\n".format( self._get_result_color( roll_result.result ), roll_result.result ) ]
 
-      categorized_rolls = roll_result.get_sorted_rolls( categorize = True )
-      length = len( categorized_rolls )
-      for index, roll in enumerate( categorized_rolls ):
-         piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll.category ), roll.roll )
+      if self._display_sorted:
+         roll_set = [ roll_result.get_sorted_rolls( categorize = True ) ]
+      else:
+         roll_set = roll_result.get_rolls( categorize = True, flatten = False )
 
-         if apply_strikethough and roll.category.is_cancelled:
-            piece = "[s]{}[/s]".format( piece )
+      display_grouping = not self._display_sorted
 
-         pieces.append( piece )
+      for roll_set_index, rolls in enumerate( roll_set ):
+         if display_grouping:
+            pieces.append( "[color={}]{} [/color]".format( _ResultColors.ItemSeparator, kivy.utils.escape_markup( "[" ) ) )
 
-         if index + 1 < length:
-            pieces.append( "[color={}], [/color]".format( _ResultColors.ItemSeparator ) )
+         length = len( rolls )
+         for index, roll in enumerate( rolls ):
+            piece = "[color={}]{:d}[/color]".format( self._get_dice_value_color( roll.category ), roll.roll )
+
+            if apply_strikethough and roll.category.is_cancelled:
+               piece = "[s]{}[/s]".format( piece )
+
+            pieces.append( piece )
+
+            if index + 1 < length:
+               pieces.append( "[color={}], [/color]".format( _ResultColors.ItemSeparator ) )
+
+         if display_grouping:
+            pieces.append( "[color={}] {}".format( _ResultColors.ItemSeparator, kivy.utils.escape_markup( "]" ) ) )
+
+            if roll_set_index + 1 < len( roll_set ):
+               pieces.append( ", " )
+
+            pieces.append( "[/color]" )
+
 
       return "".join( pieces )
+
+   def _get_display_sorted( self ):
+      return self._display_sorted_roll_control.state == "down"
+
+   _display_sorted = property( fget = _get_display_sorted )
+
+   def _update_displayed_roll( self ):
+      if self._last_roll_result is not None:
+         self._output.text = self._get_roll_string( self._last_roll_result )
 
    def on_start( self ):
       self._save_ui_state()
